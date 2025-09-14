@@ -1,3 +1,4 @@
+package Singledton;
 class Singleton {
     private static Singleton obj = null;
 
@@ -34,7 +35,7 @@ class Singleton {
 //     }
 // }
 
-public class SingletonDP {
+public class Main {
     public static void main(String[] args) {
         Singleton s1 = Singleton.getInstance();
         Singleton s2 = Singleton.getInstance();

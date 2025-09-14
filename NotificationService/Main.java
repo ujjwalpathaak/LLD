@@ -1,3 +1,4 @@
+package NotificationService;
 /*
  * Question:
  * Design a Notification System in Java that can send notifications via multiple channels (Email, SMS, Push).
@@ -62,7 +63,7 @@ class Notification{
     }
 }
 
-public class NotificationService {
+public class Main {
     public static void main(String[] args){
         Notification notif = new Notification();
         notif.send("EMAIL", "msg1", "rec1", "LOW");

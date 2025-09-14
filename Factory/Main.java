@@ -1,3 +1,4 @@
+package Factory;
 enum BurgerType { VEG, NONVEG, EGG, ALOO, PANEER, CHICKEN }
 
 interface Burger {
@@ -78,7 +79,7 @@ class KingBurgerFactory implements MealFactory {
 }
 
 // --- Main Driver ---
-public class FactoryDP { 
+public class Main { 
     public static void main(String[] args) {
         // Using SinghBurgerFactory
         MealFactory singhFactory = new SinghBurgerFactory();

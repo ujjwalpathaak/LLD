@@ -1,3 +1,4 @@
+package MarkdownEditor;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -150,7 +151,7 @@ class OrderedList extends Element{
     }
 }
 
-public class MarkdownEditor {
+public class Main {
     public static void main(String[] args) {
         MarkdownFile file = new MarkdownFile();
         Persistence storage = new Persistence();
