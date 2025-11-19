@@ -32,7 +32,6 @@ public class Application {
         return user;
     }
 
-    // 👇 Restore this method (so Main.java compiles)
     public Restaurant getRestraunt(String name) {
         RestrauntFactory rf = new RestrauntFactory();
         return rf.getRestraunt(name);
