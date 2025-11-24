@@ -100,23 +100,29 @@ class WebhookNotifier extends Service{
 class EventBus {
     Map<ApplicationState, ArrayList<Service>> listeners = new HashMap<ApplicationState, ArrayList<Service>>();
 
-    public void setListeners(ApplicationState state, ArrayList<Service> listeners){
-        this.listeners.put(state, listeners);
+    public void subscribe(ApplicationState state, Service listener){
+        ArrayList<Service> list = this.listeners.get(state);
+        if (list == null) {
+            list = new ArrayList<>();
+            this.listeners.put(state, list);
+        }
+        list.add(listener);
     }
 
-    public void removeListeners(ApplicationState state, ArrayList<Service> listeners){
-        ArrayList<Service> existingListeners = this.listeners.get(state);
-        for (Service service : listeners) {
-            existingListeners.remove(service);
-        }
-        this.setListeners(state, existingListeners);
+    public void unsubscribe(ApplicationState state, Service listener){
+        ArrayList<Service> list = this.listeners.get(state);
+        list.remove(listener);
     }
 
     public void notifyService(ApplicationState state){
-        ArrayList<Service> listeners = this.listeners.get(state);
+        ArrayList<Service> listeners = this.listeners.getOrDefault(state, new ArrayList<>());
         System.out.println("Application Moved to " + state.getState());
-        for (Service listener : listeners) {
-            listener.notifyService();
+        try {
+            for (Service listener : listeners) {
+                listener.notifyService();
+            }
+        } catch (Exception e) {
+            System.out.println(e + "notify service failed!");
         }
         System.out.println();
     }
@@ -158,11 +164,19 @@ public class Main {
         Service SMSService = new SMSService();
         Service WebhookService = new WebhookNotifier();
 
-        eventBus.setListeners(applied, new ArrayList<Service>(Arrays.asList(EmailService, SMSService)));
-        eventBus.setListeners(shortlisted, new ArrayList<Service>(Arrays.asList(SMSService, WebhookService)));
-        eventBus.setListeners(interview, new ArrayList<Service>(Arrays.asList(EmailService, SMSService, WebhookService)));
-        eventBus.setListeners(selected, new ArrayList<Service>(Arrays.asList(EmailService, WebhookService)));
-        eventBus.setListeners(rejected, new ArrayList<Service>(Arrays.asList(SMSService)));
+        eventBus.subscribe(applied, SMSService);
+        eventBus.subscribe(applied, EmailService);
+
+        eventBus.subscribe(shortlisted, SMSService);
+        eventBus.subscribe(shortlisted, WebhookService);
+
+        eventBus.subscribe(interview, EmailService);
+        eventBus.subscribe(interview, SMSService);
+        eventBus.subscribe(interview, WebhookService);
+
+        eventBus.subscribe(selected, EmailService);
+
+        eventBus.subscribe(rejected, WebhookService);
 
         JobApplication application = new JobApplication(applied, eventBus);
 
@@ -173,7 +187,8 @@ public class Main {
 
         application.moveToNextStage();
         
-        eventBus.removeListeners(interview, new ArrayList<Service>(Arrays.asList(SMSService, WebhookService)));
+        eventBus.unsubscribe(interview, SMSService);
+        eventBus.unsubscribe(interview, WebhookService);
         
         application.moveToNextStage();
     }
@@ -183,16 +198,16 @@ public class Main {
 
 // These are the points that still need improvement.
 
-// ❌ 3.1 setListeners() overwrites the entire list
+// ❌ 3.1 subscribe() overwrites the entire list
 
 // This means:
 
-// eventBus.setListeners(state, listOf(A,B))
+// eventBus.subscribe(state, listOf(A,B))
 
 
 // If someone calls:
 
-// eventBus.setListeners(state, listOf(C))
+// eventBus.subscribe(state, listOf(C))
 
 
 // Listeners A and B are lost.

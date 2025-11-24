@@ -1,12 +1,17 @@
-interface Fly {
-    void fly();
+interface Behaviour {
+    ijoj
 }
 
-interface Walk {
+abstract class Fly implements Behaviour{
+    void fly();
+    oboo
+}
+
+interface Walk implements Behaviour{
     void walk();
 }
 
-interface Talk {
+interface Talk implements Behaviour{
     void talk();
 }
 
@@ -14,15 +19,16 @@ class JetFly implements Fly {
     public void fly() {
         System.out.println("🚀 Flying with jet power!");
     }
+    bnoin
 }
 
-class NoFly implements Fly {
+class NoFly extends Fly {
     public void fly() {
         System.out.println("❌ This robot cannot fly.");
     }
 }
 
-class NormalWalk implements Walk {
+class NormalWalk extends Walk {
     public void walk() {
         System.out.println("🚶 Walking normally...");
     }
