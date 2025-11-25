@@ -41,77 +41,95 @@ class Group {
     public void addExpense(User user, String title, Integer amount, String strategy,
             HashMap<User, Integer> split) throws Exception {
 
-        SplitStrategy newStrategy = StrategyFactory.getInstance(strategy);
-        
-        if(!newStrategy.isSplitValid(amount, split)) return;
+        // check if all users in split exist in the group
+        for(Map.Entry<User, Integer> s : split.entrySet()){
+            String name = s.getKey().getName();
+            if(!this.users.contains(s.getKey())) throw new Exception(name + " is not in the group!");
+        }
 
-        Expense newExpense = new Expense(user, title, amount, newStrategy, split);
+        SplitStrategy newStrategy = StrategyFactory.getInstance(strategy);
+
+        HashMap<User, Integer> splitValues = newStrategy.getSplitValues(amount, split);
+
+        if(splitValues.isEmpty()) return;
+
+        Expense newExpense = new Expense(user, title, amount, newStrategy, splitValues);
 
         this.expenses.add(newExpense);
 
-        this.updateSheet(user, amount, split);
+        this.updateSheet(user, splitValues);
     }
 
     public void printSheet() {
-                System.out.println("--------------");
+        System.out.print("\t");
+        for(User u : this.users){
+            System.out.print(u.getName() + "\t");
+        }
+
+        System.out.println();
 
         for (Map.Entry<User, HashMap<User, Integer>> rowEntry : this.sheet.entrySet()) {
             User rowUser = rowEntry.getKey();
             Map<User, Integer> cols = rowEntry.getValue();
 
-            System.out.print("\t");
-
-            for (Map.Entry<User, Integer> col : cols.entrySet()) {
-                User user = col.getKey();
-                System.out.print(user.getName() + "\t");
-            }
-
-            System.out.println();
             System.out.print(rowUser.getName() + "\t");
 
-            for (Map.Entry<User, Integer> col : cols.entrySet()) {
-                Integer val = col.getValue();
-                System.out.print(val + "\t");
+            for(User u : this.users){
+                Integer amt = cols.getOrDefault(u, 0);
+                if(u.equals(rowUser)) System.out.print("-" + "\t");
+                else System.out.print(amt + "\t");
             }
-
             System.out.println();
         }
     }
 
-    private void updateSheet(User user, Integer amount, HashMap<User, Integer> split) {
-        HashMap<User, Integer> col = this.sheet.getOrDefault(user, new HashMap<>());
+    private void updateSheet(User userAddingSplit, HashMap<User, Integer> split) {
+        HashMap<User, Integer> userAddingBalanceSheet = this.sheet.getOrDefault(userAddingSplit, new HashMap<>());
 
         for (Map.Entry<User, Integer> s : split.entrySet()) {
-            User u = s.getKey();
-            if (u.equals(user)) {
+            User userGettingSplit = s.getKey();
+            if (userGettingSplit.equals(userAddingSplit)) {
                 continue;
             }
-            Integer amt = s.getValue();
-            Integer pendingAmt = col.getOrDefault(u, 0);
 
-            HashMap<User, Integer> userBalance = this.getUserBalance(u);
-            Integer pendingBalance = userBalance.getOrDefault(user, 0);
+            Integer amountToAdd = s.getValue();
 
-            if (pendingBalance > 0) {
-                if (pendingBalance >= amt) {
-                    pendingBalance -= amt;
-                    userBalance.put(user, pendingBalance);
-                    this.sheet.put(u, userBalance);
-                    continue;
+            // What userAddingSplit thinks userGettingSplit owes
+            Integer existingForward = userAddingBalanceSheet.getOrDefault(userGettingSplit, 0);
+
+            // What userGettingSplit thinks userAddingSplit owes
+            HashMap<User, Integer> reverseSheet =
+                    this.sheet.getOrDefault(userGettingSplit, new HashMap<>());
+            Integer existingReverse = reverseSheet.getOrDefault(userAddingSplit, 0);
+
+            /**
+             * CASE 1:
+             * reverseSheet has a positive entry → userGettingSplit owes userAddingSplit.
+             * We need to cancel out amounts.
+             */
+            if (existingReverse > 0) {
+
+                if (existingReverse >= amountToAdd) {
+                    // Reverse fully covers forward
+                    reverseSheet.put(userAddingSplit, existingReverse - amountToAdd);
+                    this.sheet.put(userGettingSplit, reverseSheet);
+                    continue; // done for this user
                 } else {
-                    amt -= pendingBalance;
-                    col.put(u, amt);
+                    // Reverse only partially covers, cancel & reduce remaining
+                    amountToAdd -= existingReverse;
+                    reverseSheet.put(userAddingSplit, 0);
+                    this.sheet.put(userGettingSplit, reverseSheet);
                 }
-            } else {
-                amt += pendingAmt;
-                col.put(u, amt);
             }
-        }
-        this.sheet.put(user, col);
-    }
 
-    public HashMap<User, Integer> getUserBalance(User user) {
-        return this.sheet.getOrDefault(user, new HashMap<>());
+            /**
+             * CASE 2:
+             * Add the remaining amount to existing forward sheet.
+             */
+            userAddingBalanceSheet.put(userGettingSplit, existingForward + amountToAdd);
+        }
+
+        this.sheet.put(userAddingSplit, userAddingBalanceSheet);
     }
 };
 
@@ -132,7 +150,7 @@ class Expense {
 };
 
 abstract class SplitStrategy {
-    public abstract Boolean isSplitValid(Integer amount, HashMap<User, Integer> split) throws Exception;
+    public abstract HashMap<User, Integer> getSplitValues(Integer amount, HashMap<User, Integer> split) throws Exception;
 };
 
 class StrategyFactory {
@@ -155,20 +173,21 @@ class StrategyFactory {
 
 class EqualStrategy extends SplitStrategy {
     @Override
-    public Boolean isSplitValid(Integer amount, HashMap<User, Integer> split) throws Exception {
-        Integer initialValue = -1;
+    public HashMap<User, Integer> getSplitValues(Integer amount, HashMap<User, Integer> split) throws Exception {
+        Integer initialValue = null;
+        Integer sum = 0;
         for (Map.Entry<User, Integer> s : split.entrySet()) {
-            if (initialValue.equals(-1))
+            if (initialValue == null)
                 initialValue = s.getValue();
             else {
                 if (!s.getValue().equals(initialValue))
                     throw new Exception("All splits must be equal to procced");
             }
-            amount -= initialValue;
+            sum += s.getValue();
         }
 
-        if (amount.equals(0))
-            return true;
+        if (amount.equals(sum))
+            return split;
 
         throw new Exception("The sum of all splits much exactly match the amount");
     }
@@ -176,14 +195,14 @@ class EqualStrategy extends SplitStrategy {
 
 class ExactStrategy extends SplitStrategy {
     @Override
-    public Boolean isSplitValid(Integer amount, HashMap<User, Integer> split) throws Exception {
-        Integer initialValue = 0;
+    public HashMap<User, Integer> getSplitValues(Integer amount, HashMap<User, Integer> split) throws Exception {
+        Integer sum = 0;
         for (Map.Entry<User, Integer> s : split.entrySet()) {
-            initialValue += s.getValue();
+            sum += s.getValue();
         }
 
-        if (amount.equals(initialValue))
-            return true;
+        if (amount.equals(sum))
+            return split;
 
         throw new Exception("The sum of all splits much exactly match the amount");
     }
@@ -191,19 +210,25 @@ class ExactStrategy extends SplitStrategy {
 
 class PercentStrategy extends SplitStrategy {
     @Override
-    public Boolean isSplitValid(Integer amount, HashMap<User, Integer> split) throws Exception {
+    public HashMap<User, Integer> getSplitValues(Integer amount, HashMap<User, Integer> split) throws Exception {
         Integer totalPercentage = 0;
+        HashMap<User, Integer> splitValues = new HashMap<>();
         for (Map.Entry<User, Integer> s : split.entrySet()) {
             User key = s.getKey();
             Integer percentage = s.getValue();
+
+            if (percentage < 0) {
+                throw new Exception("Percentage cannot be negative");
+            }
+
             totalPercentage += percentage;
 
             Integer splitAmount = (percentage * amount) / 100;
-            split.put(key, splitAmount);
+            splitValues.put(key, splitAmount);
         }
 
         if (totalPercentage.equals(100))
-            return true;
+            return splitValues;
 
         throw new Exception("The total percentage should equal to 100");
     }
@@ -231,6 +256,7 @@ public class Main {
             g1.addExpense(rahul, "Flight", 300, "Percentage", split1);
 
                         g1.printSheet();
+        System.out.println("--------------");
 
 
             HashMap<User, Integer> split2 = new HashMap<>();
@@ -239,6 +265,7 @@ public class Main {
 
                         g1.printSheet();
 
+        System.out.println("--------------");
 
             HashMap<User, Integer> split3 = new HashMap<>();
             split3.put(rahul, 80);
@@ -254,95 +281,3 @@ public class Main {
         }
     }
 }
-
-// ❌ 2. EqualStrategy logic is wrong
-
-// You wrote:
-
-// amount -= initialValue;
-
-// This subtracts same initialValue for every user, instead of:
-
-// amount -= s.getValue()
-
-// Also initialValue = -1 logic is hacky.
-
-// This makes split validation unreliable → interviewer will reject.
-
-// ⸻
-
-// ❌ 3. PercentStrategy modifies the caller’s split map
-
-// This is a serious bug:
-
-// split.put(key, splitAmount);
-
-// You mutate the user input map → unexpected side effects.
-
-// Example:
-
-// split = {Rahul=30, Praful=70}   <-- percentage
-// you convert it to amounts {Rahul=90, Praful=210}
-
-// But the caller still believes it’s percentage.
-// Very dangerous behavior.
-
-// ⸻
-
-// ❌ 4. updateSheet logic is extremely complex
-
-// Your balancing logic:
-
-// if (pendingBalance > 0) { ... }
-// else { ... }
-
-// Problems:
-// 	•	Hard to understand
-// 	•	Not mathematically correct for all cases
-// 	•	Does not simplify 3-way cycles
-// 	•	Fails when multiple debts exist
-// 	•	You’re trying to manually reconcile A owes B and B owes A → but doing it incorrectly
-
-// Tier-1 companies expect a simple, correct balancing model, like:
-
-// balance[A] += paid[A] - owed[A]
-
-// Then a settling algorithm.
-
-// Your approach will break under multiple transactions.
-
-// ⸻
-
-// ❌ 5. printSheet() is wrong
-
-// You print columns based on row entry, not global users.
-
-// So if one user owes only 2 users, sheet prints only those 2 columns → inconsistent table.
-
-// Tier-1 expects deterministic, stable ordering:
-
-// Rahul   Karan   Praful
-// ...
-
-
-// ⸻
-
-// ❌ 6. Group allows addExpense with users not in group
-
-// No validation:
-
-// if(!users.contains(user)) throw ...
-
-// Tier-1 companies expect strict validation.
-
-// ⸻
-
-// ❌ 7. Group.findUser() isn’t used properly
-
-// findUser() is redundant since you never use it.
-
-// ⸻
-
-// ❌ 8. Expense class has unused fields
-
-// strategy is stored but never used anywhere afterward.
