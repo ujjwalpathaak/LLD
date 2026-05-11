@@ -1,10 +1,8 @@
 interface Behaviour {
-    ijoj
 }
 
 abstract class Fly implements Behaviour{
     void fly();
-    oboo
 }
 
 interface Walk implements Behaviour{

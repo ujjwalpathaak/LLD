@@ -1,3 +1,4 @@
+package JAVA;
 // =====================
 // DESIGN PATTERNS CHEAT SHEET
 // =====================

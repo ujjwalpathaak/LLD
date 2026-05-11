@@ -1,3 +1,4 @@
+package JAVA;
 class Grinder {
     public void grindBeans() {
         System.out.println("Grinding coffee beans...");
